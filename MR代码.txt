@@ -1,0 +1,63 @@
+library(TwoSampleMR)
+library(MRInstruments)
+library(MRPRESSO)
+library(MendelianRandomization)
+
+#Univariate Mendelian randomization
+#exposure data
+exposure<-extract_instruments(outcomes=' ',#exposure's GWASID
+                        p1 = 5e-06,
+                        clump = TRUE,
+                        p2 = 5e-06,
+                        r2 = 0.001,
+                        kb = 10000,
+                        access_token = NULL)
+#outcome data
+outcome <- extract_outcome_data(
+  snps=exposure$SNP,
+  outcomes=" ",#outcome's GWASID
+  proxies = FALSE, maf_threshold = 0.01,
+  access_token = NULL
+)
+
+#harmonise and excluding palindromic SNPs
+harmonise <- harmonise_data(
+  exposure_dat=exposure,
+  outcome_dat=outcome,
+  action= 3
+)
+
+#MR analysis
+res <- mr(harmonise)
+#heterogeneity test
+mr_heterogeneity(m1, method_list=c( "mr_ivw_mre"))
+#horizontal pleiotropy test and outlier test
+mr_presso(BetaOutcome = "beta.outcome", BetaExposure = "beta.exposure", SdOutcome = "se.outcome", SdExposure = "se.exposure", OUTLIERtest = TRUE,DISTORTIONtest = TRUE,data =harmonise, NbDistribution = 1000, SignifThreshold = 0.05) 
+#horizontal pleiotropy test
+mr_pleiotropy_test(harmonise)
+#leave-one-out method
+single <- mr_leaveoneout(harmonise)
+mr_leaveoneout_plot(single)
+#scatter_plot
+mr_scatter_plot(res, harmonise)
+#forest_plot
+res_single <-mr_singlesnp(harmonise)
+mr_forest_plot(res_single)
+#funnel_plot
+mr_funnel_plot(res_single)
+
+
+#Multivariate Mendelian randomization
+id_exposure<- #exposure's GWASID
+id_outcome<- #outcome's GWASID
+exposure_dat <- mv_extract_exposures(id_exposure,pval_threshold = 5e-06)
+outcome_data<- extract_outcome_data(exposure_dat$SNP,id_outcome)
+mvdata<- mv_harmonise_data(exposure_dat,outcome_data)
+res <- mv_multiple(mvdata)#IVW
+MRMVInput <- mr_mvinput(bx = mv2data$exposure_beta, bxse = mv2data$exposure_se, 
+                        by = mv2data$outcome_beta, byse = mv2data$outcome_se, 
+                        correlation =matrix())
+#MR analysis
+mvivw<-mr_mvivw(MRMVInput)
+mv_median<-mr_mvmedian(MRMVInput)
+mvergger<-mr_mvegger(MRMVInput)
